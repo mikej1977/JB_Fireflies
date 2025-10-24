@@ -8,64 +8,17 @@ JBFireflies.Config = {
     minSpawn            = options.minSpawn,
     maxSpawn            = options.maxSpawn,
     maxFireflyInstances = options.maxFireflyInstances,
-    shoreBias           = options.shoreBias,
-    treeBias            = options.treeBias,
     spawnArea           = options.spawnArea,
     taperDays           = options.taperDays,
     startDay            = options.startDay,
     endDay              = options.endDay,
     hideCantSee         = options.hideCantSee,
-    debug               = true
+    debug               = false
 }
-
-if JBFireflies.Config.debug then
-    JBFireflies.Config = {
-        ticksToSpawn        = 5,
-        minSpawn            = 5,
-        maxSpawn            = 25,
-        maxFireflyInstances = 100,
-        shoreBias           = 1,
-        treeBias            = 10,
-        spawnArea           = 25,
-        taperDays           = options.taperDays,
-        startDay            = options.startDay,
-        endDay              = options.endDay,
-        hideCantSee         = options.hideCantSee,
-        debug               = true
-    }
-end
 
 local function getDayOfYear()
     local gt = getGameTime()
-    return (gt:getMonth() + 1) * 30 + gt:getDay()
-end
-
-local function isTreeOrBush(sq)
-    return sq and (sq:HasTree() or sq:hasBush())
-end
-
-local function isGrass(sq)
-    return sq and sq:getGrass()
-end
-
-local function isShoreline(sq)
-    if not sq then return false end
-    if sq:hasWater() then
-        local water = sq:getWater()
-        return water and water:isActualShore()
-    end
-    return false
-end
-
-local function orphanedWater(sq)
-    if not sq then return false end
-    local cell = getCell()
-    local x, y, z = sq:getX(), sq:getY(), sq:getZ()
-    local n = cell:getGridSquare(x, y - 1, z)
-    local s = cell:getGridSquare(x, y + 1, z)
-    local e = cell:getGridSquare(x + 1, y, z)
-    local w = cell:getGridSquare(x - 1, y, z)
-    return (n and n:hasWater()) and (s and s:hasWater()) and (e and e:hasWater()) and (w and w:hasWater())
+    return (gt:getMonth() + 1)* 30 + gt:getDay()
 end
 
 function JBFireflies.getSeasonalFactor(dayOfYear)
@@ -112,23 +65,17 @@ function JBFireflies.getAdjustedSpawnCount(baseCount)
 
     local adjusted = math.floor(baseCount * seasonal * temp * night * rain)
 
---[[     if cfg.debug then
+    if cfg.debug then
         print(string.format(
             "Day %d | Seasonal %.2f | Temp %.2f | Night %.2f | Rain %.2f | %d fireflies",
             dayOfYear, seasonal, temp, night, rain, adjusted
         ))
-    end ]]
+    end
 
     return adjusted
 end
 
-local shoreSquares, treeSquares, grassSquares, otherSquares = {}, {}, {}, {}
-
-local function clearTable(t)
-    for i = #t, 1, -1 do t[i] = nil end
-end
-
-local function spawnRandomFireflies(baseCount)
+function JBFireflies.spawnRandomFireflies(baseCount)
     local player = getPlayer()
     if not player then return end
 
@@ -141,68 +88,29 @@ local function spawnRandomFireflies(baseCount)
     local count = JBFireflies.getAdjustedSpawnCount(baseCount)
     if count == 0 then return end
 
-    -- clear and reuse category tables
-    clearTable(shoreSquares)
-    clearTable(treeSquares)
-    clearTable(grassSquares)
-    clearTable(otherSquares)
-
-    -- collect candidates (oversample factor 3x instead of 10x)
-    local samples = count * 3
-    for i = 1, samples do
-        local dx = randy:random(-cfg.spawnArea, cfg.spawnArea + 1)
-        local dy = randy:random(-cfg.spawnArea, cfg.spawnArea + 1)
-        local sq = cell:getGridSquare(px + dx, py + dy, pz)
-
-        if sq and sq:isOutside() and sq:IsOnScreen() and not cell:IsBehindStuff(sq) and not orphanedWater(sq) then
-            if isShoreline(sq) then
-                shoreSquares[#shoreSquares + 1] = sq
-            elseif isTreeOrBush(sq) then
-                treeSquares[#treeSquares + 1] = sq
-            elseif isGrass(sq) then
-                grassSquares[#grassSquares + 1] = sq
-            else
-                otherSquares[#otherSquares + 1] = sq
+    local spawned = 0
+    for _ = 1, count do
+        local square
+        for _ = 1, 10 do
+            local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
+            local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
+            if dx * dx + dy * dy > 25 then
+                local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
+                if testSquare and testSquare:isOutside() and testSquare:IsOnScreen() and not cell:IsBehindStuff(testSquare) and (not cfg.hideCantSee or testSquare:isCanSee(playerNum)) then
+                    square = testSquare
+                    break
+                end
             end
         end
-    end
-
-    local totalSquares = #shoreSquares + #treeSquares + #grassSquares + #otherSquares
-    if totalSquares == 0 then return end
-
-    -- bias split
-    local biasTarget  = math.floor(0.7 * totalSquares)
-    local totalBias   = cfg.shoreBias + cfg.treeBias
-    local rawShore    = biasTarget * (cfg.shoreBias / totalBias)
-    local rawTree     = biasTarget * (cfg.treeBias / totalBias)
-
-    local targetShore = math.floor(rawShore)
-    local targetTree  = math.floor(rawTree)
-    local remainder   = biasTarget - (targetShore + targetTree)
-    if remainder > 0 then
-        if (rawShore - targetShore) >= (rawTree - targetTree) then
-            targetShore = targetShore + remainder
-        else
-            targetTree = targetTree + remainder
+        if square then
+            FireflyUI:new(playerNum, texture, square)
+            spawned = spawned + 1
         end
     end
 
-    local targetGrass = totalSquares - biasTarget
-    local used = 0
-
-    local function spawnFromPool(pool, count, playerNum, texture)
-        for i = 1, math.min(count, #pool) do
-            FireflyUI:new(playerNum, texture, pool[i])
-        end
+    if cfg.debug then
+        print(string.format("Spawned %d fireflies", spawned))
     end
-
-    -- spawn directly from pools
-    spawnFromPool(shoreSquares, targetShore, playerNum, texture); used = used + targetShore
-    spawnFromPool(treeSquares, targetTree, playerNum, texture); used = used + targetTree
-    spawnFromPool(grassSquares, targetGrass, playerNum, texture); used = used + targetGrass
-
-    local remaining = totalSquares - used
-    spawnFromPool(otherSquares, remaining, playerNum, texture)
 end
 
 local function isInSeason(day)
@@ -235,7 +143,7 @@ function JBFireflies.onTickFireflies(tick)
     local cfg = JBFireflies.Config
     if tick % cfg.ticksToSpawn == 0 then
         local base = randy:random(cfg.minSpawn, cfg.maxSpawn)
-        spawnRandomFireflies(base)
+        JBFireflies.spawnRandomFireflies(base)
     end
 end
 
