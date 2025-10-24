@@ -1,0 +1,87 @@
+VERSION = 1,
+
+    option JBFireflyOptions.ticksToSpawn {
+        type = integer,
+        default = 5,
+        min = 1,
+        max = 1000,
+        page = JBFireflyOptions,
+        translation = JBFireflyOptions_ticksToSpawn, }
+
+    option JBFireflyOptions.minSpawn {
+        type = integer,
+        default = 2,
+        min = 1,
+        max = 10000, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_minSpawn ,}
+
+    option JBFireflyOptions.maxSpawn {
+        type = integer,
+        default = 10,
+        min = 1,
+        max = 10000,  
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_maxSpawn, }
+
+    option JBFireflyOptions.maxFireflyInstances {
+        type = integer,
+        default = 500,
+        min = 1,
+        max = 100000, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_maxFireflyInstances, }
+
+    option JBFireflyOptions.spawnArea {
+        type = integer,
+        default = 50,
+        min = 5,
+        max = 300, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_spawnArea, }
+
+    option JBFireflyOptions.shoreBias {
+        type = integer,
+        default = 1,
+        min = 1,
+        max = 10, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_shoreBias, }
+
+    option JBFireflyOptions.treeBias {
+        type = integer,
+        default = 1,
+        min = 1,
+        max = 10, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_treeBias, }
+
+    option JBFireflyOptions.taperDays {
+        type = integer,
+        default = 15,
+        min = 1,
+        max = 365, 
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_taperDays, }
+
+    option JBFireflyOptions.startDay {
+        type = integer,
+        default = 180,
+        min = 0,
+        max = 360,
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_startDay, }
+
+        option JBFireflyOptions.endDay {
+        type = integer,
+        default = 245,
+        min = 0,
+        max = 360,
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_endDay, }
+
+    option JBFireflyOptions.hideCantSee {
+        type = boolean,
+        default = false,
+        page = JBFireflyOptions, 
+        translation = JBFireflyOptions_hideCantSee, }
