@@ -40,21 +40,13 @@ VERSION = 1,
         page = JBFireflyOptions, 
         translation = JBFireflyOptions_spawnArea, }
 
-    option JBFireflyOptions.shoreBias {
+    option JBFireflyOptions.overSample {
         type = integer,
-        default = 1,
+        default = 3,
         min = 1,
-        max = 10, 
+        max = 100, 
         page = JBFireflyOptions, 
-        translation = JBFireflyOptions_shoreBias, }
-
-    option JBFireflyOptions.treeBias {
-        type = integer,
-        default = 1,
-        min = 1,
-        max = 10, 
-        page = JBFireflyOptions, 
-        translation = JBFireflyOptions_treeBias, }
+        translation = JBFireflyOptions_overSample, }
 
     option JBFireflyOptions.taperDays {
         type = integer,
