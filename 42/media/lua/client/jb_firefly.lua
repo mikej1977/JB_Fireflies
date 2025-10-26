@@ -9,8 +9,6 @@ local function setupConfig()
         minSpawn            = options.minSpawn,
         maxSpawn            = options.maxSpawn,
         maxFireflyInstances = options.maxFireflyInstances,
-        shoreBias           = options.shoreBias,
-        treeBias            = options.treeBias,
         spawnArea           = options.spawnArea,
         overSample          = options.overSample,
         taperDays           = options.taperDays,
@@ -25,8 +23,6 @@ local function setupConfig()
         cfg.minSpawn            = 5
         cfg.maxSpawn            = 25
         cfg.maxFireflyInstances = 250
-        cfg.shoreBias           = 25
-        cfg.treeBias            = 10
         cfg.spawnArea           = 50
         cfg.overSample          = 5
     end
@@ -35,6 +31,27 @@ local function setupConfig()
 end
 
 JBFireflies.Config = setupConfig()
+
+local zoneSpawnWeight = {
+    Nav = 0,
+    Forest = 3,
+    DeepForest = 5,
+    Farm = 2,
+    FarmLand = 1,
+    ForagingNav = 0,
+    TownZone = 1,
+    TrailerPark = 1,
+    Unknown = 1,
+    Vegitation = 2,
+    PHForest = 3,
+    PRForest = 3,
+    PHMixForest = 3,
+    FarmForest = 2,
+    FarmMixForest = 2,
+    BirchForest = 3,
+    BirchMixForest = 3,
+    OrganicForest = 4,
+}
 
 -- Clears tables for reuse
 local function clearTable(t)
@@ -110,7 +127,6 @@ function JBFireflies.getAdjustedSpawnCount(baseCount)
     return math.floor(baseCount * seasonal * temp * night * rain)
 end
 
--- avoid gc, not sure if this is better?
 local shoreSquares = {}
 local treeSquares = {}
 local grassSquares = {}
@@ -121,6 +137,7 @@ local function collectCandidateSquares(player, cfg, count)
     local px, py, pz = player:getX(), player:getY(), player:getZ()
     local playerNum = player:getPlayerNum()
     local minSpawnDistSq = 2
+    local sampleSize = count * (cfg.overSample or 3)
 
     -- Clear tables for this new batch of bugs
     clearTable(shoreSquares)
@@ -128,7 +145,26 @@ local function collectCandidateSquares(player, cfg, count)
     clearTable(grassSquares)
     clearTable(otherSquares)
 
-    local sampleSize = count * (cfg.overSample or 3)
+    local shoreSampleSize = sampleSize * 2
+    for _ = 1, shoreSampleSize do
+        local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
+        local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
+
+        if (dx * dx + dy * dy) > minSpawnDistSq then
+            local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
+            if testSquare then
+                local isViewBlocked = cfg.hideCantSee and not testSquare:isCanSee(playerNum)
+                local isStandardValid = testSquare:isOutside() and testSquare:IsOnScreen() and
+                    not cell:IsBehindStuff(testSquare) and not isViewBlocked
+
+                if isStandardValid and isShoreline(testSquare) then
+                    table.insert(shoreSquares, testSquare)
+                end
+            end
+        end
+    end
+
+    local sampleSize = count * (cfg.overSample or 25)
     for _ = 1, sampleSize do
         local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
         local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
@@ -137,27 +173,23 @@ local function collectCandidateSquares(player, cfg, count)
             local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
 
             if testSquare then
-                local waterBody = testSquare:getWater() -- Safe nil-check
+                local waterBody = testSquare:getWater()
                 local isWaterNotShore = (waterBody and not waterBody:isActualShore())
                 local isViewBlocked = cfg.hideCantSee and not testSquare:isCanSee(playerNum)
-                local isStandardValid = testSquare:isOutside() and testSquare:IsOnScreen() and
-                    not cell:IsBehindStuff(testSquare) and not isViewBlocked
+                local isStandardValid = testSquare:isOutside() and testSquare:IsOnScreen() and not cell:IsBehindStuff(testSquare) and not isViewBlocked
 
                 if isStandardValid then
-                    if isWaterNotShore then -- Chance to spawn a few on orphaned water
+                    -- Check for non-shore categories
+                    if isWaterNotShore then
                         if randy:random(1, 100) <= 5 then
                             table.insert(otherSquares, testSquare)
                         end
-                    else -- It's valid land, tree or shore, sort it
-                        if isShoreline(testSquare) then
-                            table.insert(shoreSquares, testSquare)
-                        elseif isTreeOrBush(testSquare) then
-                            table.insert(treeSquares, testSquare)
-                        elseif isGrassLike(testSquare) then -- Fixed logic
-                            table.insert(grassSquares, testSquare)
-                        else
-                            table.insert(otherSquares, testSquare)
-                        end
+                    elseif isTreeOrBush(testSquare) and not isShoreline(testSquare) then
+                        table.insert(treeSquares, testSquare)
+                    elseif isGrassLike(testSquare) and not isShoreline(testSquare) then
+                        table.insert(grassSquares, testSquare)
+                    elseif not isShoreline(testSquare) then
+                        table.insert(otherSquares, testSquare)
                     end
                 end
             end
@@ -166,28 +198,36 @@ local function collectCandidateSquares(player, cfg, count)
 end
 
 -- bias shit
-local function calculateSpawnTargets(totalToSpawn, cfg)
-    -- get bias
-    local shoreWeight = #shoreSquares * (cfg.shoreBias or 1)
-    local treeWeight = #treeSquares * (cfg.treeBias or 1)
-    local grassWeight = #grassSquares * 2 -- No bias set for grass, default to 1
-    local otherWeight = #otherSquares * 1 -- No bias for other
+local function calculateSpawnTargets(totalToSpawn)
+    local shorePercent     = 0.50
+    local treePercent      = 0.30
+    local grassPercent     = 0.20
 
-    local totalWeight = shoreWeight + treeWeight + grassWeight + otherWeight
-    if totalWeight == 0 then
-        return 0, 0, 0, 0
-    end
+    local shorePool        = #shoreSquares
+    local treePool         = #treeSquares
+    local grassPool        = #grassSquares
+    local otherPool        = #otherSquares
 
-    -- calc how many based on weight
-    local targetShore = math.floor((shoreWeight / totalWeight) * totalToSpawn)
-    local targetTree = math.floor((treeWeight / totalWeight) * totalToSpawn)
-    local targetGrass = math.floor((grassWeight / totalWeight) * totalToSpawn)
+    local remainingToSpawn = totalToSpawn
 
-    -- others for the leftovers
-    local spawnedSoFar = targetShore + targetTree + targetGrass
-    local targetOther = math.max(0, totalToSpawn - spawnedSoFar)
+    local targetShore      = math.floor(totalToSpawn * shorePercent)
+    local actualShore      = math.min(shorePool, targetShore)
+    remainingToSpawn       = remainingToSpawn - actualShore
 
-    return targetShore, targetTree, targetGrass, targetOther
+    local unspawnedShore   = targetShore - actualShore
+    local targetTree       = math.floor(totalToSpawn * treePercent) + unspawnedShore
+    local actualTree       = math.min(treePool, targetTree)
+    remainingToSpawn       = remainingToSpawn - actualTree
+
+    local unspawnedTree    = targetTree - actualTree
+    local targetGrass      = math.floor(totalToSpawn * grassPercent) + unspawnedTree
+    local actualGrass      = math.min(grassPool, targetGrass)
+    remainingToSpawn       = remainingToSpawn - actualGrass
+
+    local targetOther      = remainingToSpawn
+    local actualOther      = math.min(otherPool, targetOther)
+
+    return actualShore, actualTree, actualGrass, actualOther
 end
 
 -- spawn from the pools
@@ -195,13 +235,14 @@ local function spawnFromPool(pool, count, playerNum, texture)
     local spawnedCount = 0
     while count > 0 and #pool > 0 do
         local index = randy:random(1, #pool)
-        local sq = pool[index]
+        local gsq = pool[index]
+        local zoneWeight = zoneSpawnWeight[gsq:getZoneType()] or 1
         table.remove(pool, index)
-
-        FireflyUI:new(playerNum, texture, sq)
-
-        count = count - 1
-        spawnedCount = spawnedCount + 1
+        if zoneWeight > 0 then
+            FireflyUI:new(playerNum, texture, gsq)
+            count = count - 1
+            spawnedCount = spawnedCount + 1
+        end
     end
     return spawnedCount
 end
@@ -215,23 +256,22 @@ function JBFireflies.spawnRandomFireflies(baseCount)
     local count = JBFireflies.getAdjustedSpawnCount(baseCount)
     if count == 0 then return end
 
-    -- get and sort the squares
     collectCandidateSquares(player, cfg, count)
 
     -- bias math shit
     local totalCandidates = #shoreSquares + #otherSquares + #treeSquares + #grassSquares
     if totalCandidates == 0 then return end
 
-    local targetShore, targetTree, targetGrass, targetOther = calculateSpawnTargets(count, cfg)
+    local targetShore, targetTree, targetGrass, targetOther = calculateSpawnTargets(count)
 
-    -- do the spawn
     local texture = getTexture("media/textures/jb_firefly.png")
     local playerNum = player:getPlayerNum()
 
     local shoreSpawned = spawnFromPool(shoreSquares, targetShore, playerNum, texture)
     local treeSpawned = spawnFromPool(treeSquares, targetTree, playerNum, texture)
     local grassSpawned = spawnFromPool(grassSquares, targetGrass, playerNum, texture)
-    local otherSpawned = spawnFromPool(otherSquares, targetOther / 10, playerNum, texture)
+
+    local otherSpawned = spawnFromPool(otherSquares, targetOther, playerNum, texture)
 
     if cfg.debug then
         local spawned = shoreSpawned + treeSpawned + grassSpawned + otherSpawned
