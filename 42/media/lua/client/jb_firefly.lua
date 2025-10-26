@@ -1,24 +1,60 @@
 local FireflyUI = require("jb_firefly_ui")
 JBFireflies = JBFireflies or {}
 local randy = newrandom()
-local options = SandboxVars.JBFireflyOptions
 
-JBFireflies.Config = {
-    ticksToSpawn        = options.ticksToSpawn,
-    minSpawn            = options.minSpawn,
-    maxSpawn            = options.maxSpawn,
-    maxFireflyInstances = options.maxFireflyInstances,
-    spawnArea           = options.spawnArea,
-    taperDays           = options.taperDays,
-    startDay            = options.startDay,
-    endDay              = options.endDay,
-    hideCantSee         = options.hideCantSee,
-    debug               = false
-}
+local function setupConfig()
+    local options = SandboxVars.JBFireflyOptions
+    local cfg = {
+        ticksToSpawn        = options.ticksToSpawn,
+        minSpawn            = options.minSpawn,
+        maxSpawn            = options.maxSpawn,
+        maxFireflyInstances = options.maxFireflyInstances,
+        shoreBias           = options.shoreBias,
+        treeBias            = options.treeBias,
+        spawnArea           = options.spawnArea,
+        overSample          = options.overSample,
+        taperDays           = options.taperDays,
+        startDay            = options.startDay,
+        endDay              = options.endDay,
+        hideCantSee         = options.hideCantSee,
+        debug               = true
+    }
+
+--[[     if cfg.debug then
+        cfg.ticksToSpawn        = 5
+        cfg.minSpawn            = 5
+        cfg.maxSpawn            = 25
+        cfg.maxFireflyInstances = 250
+        cfg.shoreBias           = 25
+        cfg.treeBias            = 10
+        cfg.spawnArea           = 50
+        cfg.overSample          = 5,
+    end ]]
+    return cfg
+end
+
+JBFireflies.Config = setupConfig()
+
+local function isShoreline(sq)
+    if not sq then return false end
+    local water = sq:getWater()
+    return water and water:isActualShore()
+end
+
+local function clearTable(t)
+    for i = #t, 1, -1 do t[i] = nil end
+end
 
 local function getDayOfYear()
     local gt = getGameTime()
-    return (gt:getMonth() + 1)* 30 + gt:getDay()
+    return (gt:getMonth() + 1) * 30 + gt:getDay()
+end
+
+local function isInSeason(day)
+    local cfg = JBFireflies.Config
+    local start = cfg.startDay - cfg.taperDays
+    local finish = cfg.endDay + cfg.taperDays
+    return day >= start and day <= finish
 end
 
 function JBFireflies.getSeasonalFactor(dayOfYear)
@@ -31,7 +67,7 @@ function JBFireflies.getSeasonalFactor(dayOfYear)
     end
 
     local progress = (dayOfYear - taperStart) / (taperEnd - taperStart)
-    return math.sin(progress * math.pi) -- 0 → 1 → 0
+    return math.sin(progress * math.pi)
 end
 
 function JBFireflies.getTemperatureFactor()
@@ -64,15 +100,36 @@ function JBFireflies.getAdjustedSpawnCount(baseCount)
     local rain = JBFireflies.getRainFactor()
 
     local adjusted = math.floor(baseCount * seasonal * temp * night * rain)
-
-    if cfg.debug then
-        print(string.format(
-            "Day %d | Seasonal %.2f | Temp %.2f | Night %.2f | Rain %.2f | %d fireflies",
-            dayOfYear, seasonal, temp, night, rain, adjusted
-        ))
-    end
-
     return adjusted
+end
+
+local shoreSquares = {}
+local treeSquares = {}
+local grassSquares = {}
+local otherSquares = {}
+
+local function spawnFromPool(pool, count, playerNum, texture)
+    local spawnedCount = 0
+    while count > 0 and #pool > 0 do
+        local index = randy:random(1, #pool)
+        local sq = pool[index]
+        table.remove(pool, index)
+
+        FireflyUI:new(playerNum, texture, sq)
+
+        count = count - 1
+        spawnedCount = spawnedCount + 1
+    end
+    return spawnedCount
+end
+
+local function isTreeOrBush(sq)
+    return sq:HasTree() or sq:hasBush()
+end
+
+-- print(getPlayer():getSquare():hasGrassLike())
+local function isGrassy(sq)
+    return not sq:hasGrassLike()
 end
 
 function JBFireflies.spawnRandomFireflies(baseCount)
@@ -80,51 +137,91 @@ function JBFireflies.spawnRandomFireflies(baseCount)
     if not player then return end
 
     local cfg = JBFireflies.Config
+    local count = JBFireflies.getAdjustedSpawnCount(baseCount)
+    if count == 0 then return end
+
     local cell = getWorld():getCell()
     local texture = getTexture("media/textures/jb_firefly.png")
     local px, py, pz = player:getX(), player:getY(), player:getZ()
     local playerNum = player:getPlayerNum()
+    local minSpawnDistSq = 2
 
-    local count = JBFireflies.getAdjustedSpawnCount(baseCount)
-    if count == 0 then return end
+    clearTable(shoreSquares)
+    clearTable(treeSquares)
+    clearTable(grassSquares)
+    clearTable(otherSquares)
 
-    local spawned = 0
-    for _ = 1, count do
-        local square
-        for _ = 1, 10 do
-            local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
-            local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
-            if dx * dx + dy * dy > 25 then
-                local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
-                if testSquare and testSquare:isOutside() and testSquare:IsOnScreen() and not cell:IsBehindStuff(testSquare) and (not cfg.hideCantSee or testSquare:isCanSee(playerNum)) then
-                    square = testSquare
-                    break
+    local sampleSize = count * (cfg.overSample or 3)
+    for _ = 1, sampleSize do
+        local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
+        local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
+
+        if (dx * dx + dy * dy) > minSpawnDistSq then
+            local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
+
+            if testSquare then
+                local isWaterNotShore = testSquare:hasWater() and not testSquare:getWater():isActualShore()
+                local isViewBlocked = cfg.hideCantSee and not testSquare:isCanSee(playerNum)
+
+                local isStandardValid = testSquare:isOutside() and testSquare:IsOnScreen() and
+                    not cell:IsBehindStuff(testSquare) and not isViewBlocked
+
+                if isStandardValid then
+                    if isWaterNotShore then -- chance to spawn a few on orphaned water
+                        if randy:random(1, 100) <= 5 then
+                            table.insert(otherSquares, testSquare)
+                        end
+                    else
+                        if isShoreline(testSquare) then -- it's a shoreline
+                            table.insert(shoreSquares, testSquare)
+                        elseif isTreeOrBush(testSquare) then
+                            table.insert(treeSquares, testSquare)
+                        elseif isGrassy(testSquare) then
+                            table.insert(grassSquares, testSquare)
+                        else -- it's a normal
+                            table.insert(otherSquares, testSquare)
+                        end
+                    end
                 end
             end
         end
-        if square then
-            FireflyUI:new(playerNum, texture, square)
-            spawned = spawned + 1
-        end
     end
 
-    if cfg.debug then
-        print(string.format("Spawned %d fireflies", spawned))
-    end
-end
+    local totalCandidates = #shoreSquares + #otherSquares + #treeSquares + #grassSquares
+    if totalCandidates == 0 then return end
 
-local function isInSeason(day)
-    local cfg = JBFireflies.Config
-    local start = cfg.startDay - cfg.taperDays
-    local finish = cfg.endDay + cfg.taperDays
-    return day >= start and day <= finish
+    local targetShore = math.floor(count * ((#shoreSquares / totalCandidates) * (cfg.shoreBias or 5)))
+    local targetTree = math.floor(count * ((#treeSquares / totalCandidates) * (cfg.treeBias or 2)))
+    local targetGrass = math.floor(count * ((#grassSquares / totalCandidates) * 2))
+    targetShore = math.min(targetShore, count)
+    targetTree = math.min(targetTree, count)
+    targetGrass = math.min(targetGrass, count)
+    local targetOther = count - targetShore - targetTree - targetGrass
+
+    local spawned = 0
+
+    local shoreSpawned = spawnFromPool(shoreSquares, targetShore, playerNum, texture)
+    spawned = spawned + shoreSpawned
+
+    local treeSpawned = spawnFromPool(treeSquares, targetTree, playerNum, texture)
+    spawned = spawned + treeSpawned
+
+    local grassSpawned = spawnFromPool(grassSquares, targetGrass, playerNum, texture)
+    spawned = spawned + grassSpawned
+
+    local otherSpawned = spawnFromPool(otherSquares, targetOther / 10, playerNum, texture)
+    spawned = spawned + otherSpawned
+
+    --[[ if cfg.debug then
+        print(string.format("Spawned %d fireflies (%d from shore, %d from other)", spawned, shoreSpawned, otherSpawned))
+    end ]]
 end
 
 function JBFireflies.onDailyCheck()
     local day = getDayOfYear()
     if isInSeason(day) then
         -- switch to ontick
-        print("switching to ontick check")
+        --print("JB's Fireflies: In season. Switching to OnTick check.")
         Events.EveryTenMinutes.Remove(JBFireflies.onDailyCheck)
         Events.OnTick.Add(JBFireflies.onTickFireflies)
     end
@@ -134,7 +231,7 @@ function JBFireflies.onTickFireflies(tick)
     local day = getDayOfYear()
     if not isInSeason(day) then
         -- switch to daily
-        print("switching to daily check")
+        --print("JB's Fireflies: Out of season. Switching to daily check.")
         Events.OnTick.Remove(JBFireflies.onTickFireflies)
         Events.EveryTenMinutes.Add(JBFireflies.onDailyCheck)
         return
