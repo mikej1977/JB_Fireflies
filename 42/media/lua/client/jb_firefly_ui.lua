@@ -2,14 +2,34 @@ local FireflyUI = {}
 FireflyUI.__index = FireflyUI
 
 local randy = newrandom()
-FireflyUI.instances = {} -- This will be managed by FireflyUI.renderAll()
+FireflyUI.instances = {}
+
+-- Pre-calculate a sin/cos lookup table
+local SIN_TABLE = {}
+for i = 1, 360 do
+    local angleRad = math.rad(i)
+    SIN_TABLE[i] = {
+        sin = math.sin(angleRad),
+        cos = math.cos(angleRad),
+    }
+end
+
+-- get a value from the lookup table
+local function getSinCos(angleInDegrees)
+    local roundedAngle = ((math.floor(angleInDegrees) % 360) + 360) % 360 + 1
+    return SIN_TABLE[roundedAngle].sin, SIN_TABLE[roundedAngle].cos
+end
+
+-- Pre-calculate an easing lookup table
+local EASE_TABLE = {}
+for i = 1, 100 do
+    local t = i / 100
+    EASE_TABLE[i] = 1 - t ^ 0.3
+end
+EASE_TABLE[0] = 1
 
 local function randomFloat(min, max)
     return min + randy:random() * (max - min)
-end
-
-function FireflyUI.easeOutFlash(t)
-    return 1 - t ^ 0.3
 end
 
 local function setupRandoms(playerNum)
@@ -43,7 +63,7 @@ function FireflyUI:new(playerNum, texture, square)
     o.offsetY = params.offsetY
     o.baseAlpha = params.baseAlpha
 
-    o.angle = randomFloat(0, math.pi * 2)
+    o.angle = randomFloat(0, 360)
     o.speed = randomFloat(0.001, 0.005)
     o.rotationRate = randomFloat(-0.02, 0.02)
 
@@ -79,8 +99,9 @@ function FireflyUI:render()
     local lightFactor = 1 - math.min(lightLevel / 1.0, 1.0)
 
     self.angle = self.angle + self.rotationRate
-    self.offsetX = self.offsetX + math.cos(self.angle) * self.speed
-    self.offsetY = self.offsetY + math.sin(self.angle) * self.speed
+    local sin, cos = getSinCos(self.angle)
+    self.offsetX = self.offsetX + cos * self.speed
+    self.offsetY = self.offsetY + sin * self.speed
 
     local sqx = self.square:getX() + self.offsetX
     local sqy = self.square:getY() + self.offsetY
@@ -88,7 +109,7 @@ function FireflyUI:render()
     local scrx, scry = ISCoordConversion.ToScreen(sqx, sqy, sqz, self.playerNum)
 
     local t = self.frameCount / self.maxFrames
-    local easedAlpha = self.baseAlpha * FireflyUI.easeOutFlash(t)
+    local easedAlpha = self.baseAlpha * EASE_TABLE[math.floor(t * 100)]
     local finalAlpha = easedAlpha * distFactor * (lightFactor * 25)
 
     if finalAlpha < 0.1 then
