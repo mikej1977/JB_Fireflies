@@ -11,5 +11,5 @@ Sandbox_EN = {
     Sandbox_JBFireflyOptions_startDay = "Day of the year when the firefly season begins",
     Sandbox_JBFireflyOptions_endDay = "Day of the year when the firefly season ends",
     Sandbox_JBFireflyOptions_hideCantSee = "Hide fireflies that your player shouldn't be able to see",
-    Sandbox_JBFireflyOptions_overSample = "How many squares to oversample to get the desired spawn area",
+    Sandbox_JBFireflyOptions_overSample = "How many loops of oversampling to get the desired spawn area",
 }

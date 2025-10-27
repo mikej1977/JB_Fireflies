@@ -4,7 +4,6 @@ FireflyUI.__index = FireflyUI
 local randy = newrandom()
 FireflyUI.instances = {}
 
--- Pre-calculate a sin/cos lookup table
 local SIN_TABLE = {}
 for i = 1, 360 do
     local angleRad = math.rad(i)
@@ -14,13 +13,11 @@ for i = 1, 360 do
     }
 end
 
--- get a value from the lookup table
 local function getSinCos(angleInDegrees)
     local roundedAngle = ((math.floor(angleInDegrees) % 360) + 360) % 360 + 1
     return SIN_TABLE[roundedAngle].sin, SIN_TABLE[roundedAngle].cos
 end
 
--- Pre-calculate an easing lookup table
 local EASE_TABLE = {}
 for i = 1, 100 do
     local t = i / 100
@@ -36,15 +33,13 @@ local function setupRandoms(playerNum)
     local zoom = getCore():getZoom(playerNum)
     return {
         maxFrames = randy:random(60, 250),
-        size = math.max(2, randy:random(2, 10) * zoom),
+        size = math.max(2, randy:random(2, 5) * zoom),
         offsetX = randy:random(-1, 1) / 10,
         offsetY = randy:random(-1, 1) / 10,
         baseAlpha = randy:random(50, 100) / 100
     }
 end
 
---- The constructor no longer touches the Event system.
--- It just creates the object and adds it to the list.
 function FireflyUI:new(playerNum, texture, square)
     local cfg = JBFireflies.Config
     if #FireflyUI.instances >= cfg.maxFireflyInstances then return end
@@ -54,7 +49,7 @@ function FireflyUI:new(playerNum, texture, square)
     o.texture = texture
     o.square = square
     o.frameCount = 0
-    o.isDead = false -- Flag for the manager loop to clean up
+    o.doneFlashing = false
 
     local params = setupRandoms(playerNum)
     o.maxFrames = params.maxFrames
@@ -64,7 +59,7 @@ function FireflyUI:new(playerNum, texture, square)
     o.baseAlpha = params.baseAlpha
 
     o.angle = randomFloat(0, 360)
-    o.speed = randomFloat(0.001, 0.005)
+    o.speed = randomFloat(0.001, 0.002)
     o.rotationRate = randomFloat(-0.02, 0.02)
 
     table.insert(FireflyUI.instances, o)
@@ -74,15 +69,15 @@ end
 function FireflyUI:render()
     self.frameCount = self.frameCount + 1
 
-    if self.isDead then return end -- Already flagged for removal
+    if self.doneFlashing then return end
 
     if self.frameCount > self.maxFrames then
-        self.isDead = true
+        self.doneFlashing = true
         return
     end
 
     if not self.texture or not self.square:IsOnScreen() then
-        self.isDead = true
+        self.doneFlashing = true
         return
     end
 
@@ -113,7 +108,7 @@ function FireflyUI:render()
     local finalAlpha = easedAlpha * distFactor * (lightFactor * 25)
 
     if finalAlpha < 0.1 then
-        self.isDead = true
+        self.doneFlashing = true
         return
     end
 
@@ -126,7 +121,7 @@ function FireflyUI.renderAll()
 
         inst:render()
 
-        if inst.isDead then
+        if inst.doneFlashing then
             table.remove(FireflyUI.instances, i)
         end
     end
