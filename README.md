@@ -1,1 +1,1 @@
-# JB_Fireflies Version 2.0
+# JB_Fireflies Version 2.8
