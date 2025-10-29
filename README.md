@@ -73,7 +73,7 @@ Fireflies will slowly start appearing before your start day and gradually thin o
 
 ---
 
-⚠️ **Note:** If you're teleporting around, you may get an error if we try to update on a square that just vanished.
+**Note:** If you're teleporting around, you may get an error if we try to update on a square that just vanished.
 
 ---
 
