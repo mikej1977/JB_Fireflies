@@ -8,10 +8,6 @@ local cm = getClimateManager()
 local randy = newrandom()
 local FIREFLY_TEXTURE = getTexture("media/textures/jb_firefly.png")
 
-local function clearTable(t)
-    for i = #t, 1, -1 do t[i] = nil end
-end
-
 local function getDayOfYear()
     return (gt:getMonth() + 1) * 30 + gt:getDay()
 end
@@ -61,9 +57,9 @@ function JBFireflies.getAdjustedSpawnCount(baseCount)
 end
 
 local function calculateSpawnTargets(totalToSpawn, shoreSquares, treeSquares, grassSquares, otherSquares)
-    local shorePercent = 0.50
-    local treePercent = 0.30
-    local grassPercent = 0.20
+    local shorePercent = 0.40
+    local treePercent = 0.40
+    local grassPercent = 0.30
 
     local shorePool = #shoreSquares
     local treePool = #treeSquares
@@ -175,7 +171,7 @@ end
 
 Events.OnGameStart.Add(function()
     JBFireflies.Config = SandboxVars.JBFireflyOptions
-    JBFireflies.Config.debug = false --########################## MAKE SURE AND TURN THIS SHIT OFF BEFORE UPLOADING NEXT TIME
+    JBFireflies.Config.debug = false ---------------------------------------------- ########################## MAKE SURE AND TURN THIS SHIT OFF BEFORE UPLOADING NEXT TIME
     JBFireflies.Config.spawnArea = math.min(JBFireflies.Config.spawnArea, 150)
     local day = getDayOfYear()
     if isInSeason(day) then

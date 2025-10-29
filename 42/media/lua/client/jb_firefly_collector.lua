@@ -3,36 +3,39 @@ local shoreSquares, treeSquares, grassSquares, otherSquares = {}, {}, {}, {}
 
 local function clearTable(t) t[#t] = nil end
 
-local function isShoreline(sq)
-    if not sq then return false end
-    local water = sq:getWater()
-    return water and water:isActualShore()
-end
+-- since PZ java getGrassLike doesn't do any null checks on sprite name
+local GRASS_PREFIXES = {
+    { "e_newgrass_",            #"e_newgrass_" },
+    { "blends_grassoverlays_",  #"blends_grassoverlays_" },
+    { "d_plants_",              #"d_plants_" },
+    { "d_generic_1_",           #"d_generic_1_" },
+    { "d_floorleaves_",         #"d_floorleaves_" },
+}
 
--- since PZ java getGrassLike doesn't do any nil checks
 local function JB_hasGrassLike(sq)
     if not sq then return false end
-
     local objects = sq:getObjects()
     for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-
-        if obj:getSprite() then
-            local spriteName = obj:getSprite():getName()
-
-            if spriteName then
-                if luautils.stringStarts(spriteName, "e_newgrass_") or
-                    luautils.stringStarts(spriteName, "blends_grassoverlays_") or
-                    luautils.stringStarts(spriteName, "d_plants_") or
-                    luautils.stringStarts(spriteName, "d_generic_1_") or
-                    luautils.stringStarts(spriteName, "d_floorleaves_") then
-                    return true
+        local sprite = objects:get(i):getSprite()
+        if sprite then
+            local name = sprite:getName()
+            if name then
+                for j = 1, #GRASS_PREFIXES do
+                    local prefix, len = GRASS_PREFIXES[j][1], GRASS_PREFIXES[j][2]
+                    if name:sub(1, len) == prefix then
+                        return true
+                    end
                 end
             end
         end
     end
-
     return false
+end
+
+local function isShoreline(sq)
+    if not sq then return false end
+    local water = sq:getWater()
+    return water and water:isActualShore()
 end
 
 local SquareCollector = {
@@ -60,11 +63,10 @@ function SquareCollector:start(player, cfg)
     self.playerNum = player:getPlayerNum()
 
     local area = (self.cfg.spawnArea * 2) * (self.cfg.spawnArea * 2)
-    local sampleDensity = (cfg.overSample or 5) / 100
+    local sampleDensity = (cfg.overSample or 3) / 100
     self.totalSamples = math.max(100, math.floor(area * sampleDensity))
-
-    self.processed = 0
     self.perTick = math.max(1, math.floor(self.totalSamples / cfg.ticksToSpawn))
+    self.processed = 0
     self.active = true
 end
 
@@ -98,7 +100,7 @@ function SquareCollector:update()
                     not isViewBlocked
 
                 if isStandardValid then
-                    if isWaterNotShore and randy:random(1, 100) <= 2 then
+                    if isWaterNotShore and randy:random(1, 100) <= 1 then
                         table.insert(otherSquares, sq)
                     end
 
@@ -115,6 +117,7 @@ function SquareCollector:update()
                     if sq:HasTree() then
                         table.insert(treeSquares, sq)
                     elseif JB_hasGrassLike(sq) then
+                    --elseif sq:hasGrassLike() then
                         table.insert(grassSquares, sq)
                     elseif not isWaterNotShore then
                         table.insert(otherSquares, sq)

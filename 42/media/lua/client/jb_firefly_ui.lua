@@ -4,6 +4,7 @@ FireflyUI.__index = FireflyUI
 local randy = newrandom()
 FireflyUI.instances = {}
 
+-- preload some shit cuz maths is slow
 local SIN_TABLE = {}
 for i = 1, 360 do
     local angleRad = math.rad(i)
@@ -13,17 +14,19 @@ for i = 1, 360 do
     }
 end
 
-local function getSinCos(angleInDegrees)
-    local roundedAngle = ((math.floor(angleInDegrees) % 360) + 360) % 360 + 1
-    return SIN_TABLE[roundedAngle].sin, SIN_TABLE[roundedAngle].cos
-end
-
 local EASE_TABLE = {}
 for i = 1, 100 do
     local t = i / 100
     EASE_TABLE[i] = 1 - t ^ 0.3
 end
 EASE_TABLE[0] = 1
+
+local function getSinCos(angleInDegrees)
+    -- should eval to 1 - 360
+    -- **AND DID YOU KNOW LUA MOD CAN RETURN A NEGATIVE NUMBER? BECAUSE I DIDN'T!**
+    local roundedAngle = ((math.floor(angleInDegrees) % 360) + 360) % 360 + 1
+    return SIN_TABLE[roundedAngle].sin, SIN_TABLE[roundedAngle].cos
+end
 
 local function randomFloat(min, max)
     return min + randy:random() * (max - min)
@@ -115,21 +118,29 @@ function FireflyUI:render()
     UIManager.DrawTexture(self.texture, scrx, scry, self.size, self.size, finalAlpha)
 end
 
+-- 60 fps for some lightning bugs should be fine(IT'S NOT)
+local RENDER_INTERVAL_MS = 1000 / 60
+local nextRenderTime = 0
+
 function FireflyUI.renderAll()
+--[[     local now = getTimestampMs()
+    if now < nextRenderTime then
+        return
+    end
+    nextRenderTime = now + RENDER_INTERVAL_MS ]]
     for i = #FireflyUI.instances, 1, -1 do
         local inst = FireflyUI.instances[i]
-
         inst:render()
-
         if inst.doneFlashing then
             table.remove(FireflyUI.instances, i)
         end
     end
-
     if JBFireflies.Config.debug then
-        getTextManager():DrawString(150, 150,
+        getTextManager():DrawString(
+            150, 150,
             string.format("Fireflies: %d", #FireflyUI.instances),
-            0.6, 1.0, 0.6, 1.0)
+            0.6, 1.0, 0.6, 1.0
+        )
     end
 end
 
