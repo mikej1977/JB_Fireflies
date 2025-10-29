@@ -59,7 +59,7 @@ end
 local function calculateSpawnTargets(totalToSpawn, shoreSquares, treeSquares, grassSquares, otherSquares)
     local shorePercent = 0.40
     local treePercent = 0.40
-    local grassPercent = 0.30
+    local grassPercent = 0.20
 
     local shorePool = #shoreSquares
     local treePool = #treeSquares

@@ -118,16 +118,7 @@ function FireflyUI:render()
     UIManager.DrawTexture(self.texture, scrx, scry, self.size, self.size, finalAlpha)
 end
 
--- 60 fps for some lightning bugs should be fine(IT'S NOT)
-local RENDER_INTERVAL_MS = 1000 / 60
-local nextRenderTime = 0
-
 function FireflyUI.renderAll()
---[[     local now = getTimestampMs()
-    if now < nextRenderTime then
-        return
-    end
-    nextRenderTime = now + RENDER_INTERVAL_MS ]]
     for i = #FireflyUI.instances, 1, -1 do
         local inst = FireflyUI.instances[i]
         inst:render()
