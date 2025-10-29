@@ -1,0 +1,15 @@
+UI_PTBR = {
+
+    Sandbox_JBFireflyOptions = "Vaga-lumes do JB",
+    
+    Sandbox_JBFireflyOptions_ticksToSpawn = "Gerar vaga-lumes a cada # ticks",
+    Sandbox_JBFireflyOptions_minSpawn = "Quantidade mínima de vaga-lumes gerados a cada # ticks",
+    Sandbox_JBFireflyOptions_maxSpawn = "Quantidade máxima de vaga-lumes gerados a cada # ticks",
+    Sandbox_JBFireflyOptions_maxFireflyInstances = "Número máximo de vaga-lumes renderizados na tela",
+    Sandbox_JBFireflyOptions_spawnArea = "Quantidade de quadrados ao redor do jogador onde os vaga-lumes aparecem",
+    Sandbox_JBFireflyOptions_taperDays = "Número de dias para os vaga-lumes surgirem e desaparecerem gradualmente",
+    Sandbox_JBFireflyOptions_startDay = "Dia do ano em que a temporada de vaga-lumes começa",
+    Sandbox_JBFireflyOptions_endDay = "Dia do ano em que a temporada de vaga-lumes termina",
+    Sandbox_JBFireflyOptions_hideCantSee = "Ocultar vaga-lumes que o jogador não deveria conseguir ver",
+
+}

@@ -36,7 +36,7 @@ VERSION = 1,
         type = integer,
         default = 50,
         min = 5,
-        max = 300, 
+        max = 150, 
         page = JBFireflyOptions, 
         translation = JBFireflyOptions_spawnArea, }
 

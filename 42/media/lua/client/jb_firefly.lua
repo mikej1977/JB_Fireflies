@@ -1,67 +1,18 @@
+JBFireflies = JBFireflies or {}
 local FireflyUI = require("jb_firefly_ui")
+local SquareCollector = require("jb_firefly_collector")
 local SpawnStatsWindow = require("jb_firefly_debug")
 local spawnStatsUI
-
-JBFireflies = JBFireflies or {}
+local gt = getGameTime()
+local cm = getClimateManager()
 local randy = newrandom()
-
-local function setupConfig()
-    local options = SandboxVars.JBFireflyOptions
-    local cfg = {
-        ticksToSpawn        = options.ticksToSpawn,
-        minSpawn            = options.minSpawn,
-        maxSpawn            = options.maxSpawn,
-        maxFireflyInstances = options.maxFireflyInstances,
-        spawnArea           = options.spawnArea,
-        overSample          = options.overSample,
-        taperDays           = options.taperDays,
-        startDay            = options.startDay,
-        endDay              = options.endDay,
-        hideCantSee         = options.hideCantSee,
-        debug               = false
-    }
-
---[[
-    if cfg.debug then
-        cfg.ticksToSpawn        = 10
-        cfg.minSpawn            = 3
-        cfg.maxSpawn            = 8
-        cfg.maxFireflyInstances = 500
-        cfg.spawnArea           = 40
-        cfg.overSample          = 25
-    end
-]]
-
-    return cfg
-end
-
-JBFireflies.Config = setupConfig()
-
-local function toggleSpawnStatsWindow()
-    if spawnStatsUI and spawnStatsUI:getIsVisible() then
-        spawnStatsUI:setVisible(false)
-        spawnStatsUI:removeFromUIManager()
-    else
-        if not spawnStatsUI then
-            spawnStatsUI = SpawnStatsWindow:new(300, 300, 300, 250)
-        end
-        spawnStatsUI:addToUIManager()
-        spawnStatsUI:setVisible(true)
-    end
-end
+local FIREFLY_TEXTURE = getTexture("media/textures/jb_firefly.png")
 
 local function clearTable(t)
     for i = #t, 1, -1 do t[i] = nil end
 end
 
-local function isShoreline(sq)
-    if not sq then return false end
-    local water = sq:getWater()
-    return water and water:isActualShore()
-end
-
 local function getDayOfYear()
-    local gt = getGameTime()
     return (gt:getMonth() + 1) * 30 + gt:getDay()
 end
 
@@ -82,23 +33,22 @@ function JBFireflies.getSeasonalFactor(dayOfYear)
 end
 
 function JBFireflies.getTemperatureFactor()
-    local temp = getClimateManager():getTemperature()
+    local temp = cm:getTemperature()
     if temp < 13 then return 0 end
     if temp >= 25 then return 1 end
     return (temp - 13) / 12
 end
 
 function JBFireflies.getNightFactor()
-    local night = getGameTime():getNight()
+    local night = gt:getNight()
     if night < 0.3 then return 0 end
     if night > 0.6 then return 1 end
     return night
 end
 
 function JBFireflies.getRainFactor()
-    local rain = getClimateManager():getPrecipitationIntensity()
-    if rain <= 0 then return 1 end
-    return 1 / (rain * 10)
+    local rain = math.min(cm:getPrecipitationIntensity(), 1)
+    return 1 - rain
 end
 
 function JBFireflies.getAdjustedSpawnCount(baseCount)
@@ -110,73 +60,10 @@ function JBFireflies.getAdjustedSpawnCount(baseCount)
     return math.floor(baseCount * seasonal * temp * night * rain)
 end
 
-local shoreSquares = {}
-local treeSquares = {}
-local grassSquares = {}
-local otherSquares = {}
-
-local function collectCandidateSquares(player, cfg, count)
-    local cell = getWorld():getCell()
-    local px, py, pz = player:getX(), player:getY(), player:getZ()
-    local playerNum = player:getPlayerNum()
-    local minSpawnDistSq = 2
-
-    clearTable(shoreSquares)
-    clearTable(treeSquares)
-    clearTable(grassSquares)
-    clearTable(otherSquares)
-
-    local sampleSize = count * (cfg.overSample or 5)
-
-    for _ = 1, sampleSize do
-        local dx = randy:random(-cfg.spawnArea, cfg.spawnArea)
-        local dy = randy:random(-cfg.spawnArea, cfg.spawnArea)
-
-        if (dx * dx + dy * dy) > minSpawnDistSq then
-            local testSquare = cell:getGridSquare(px + dx, py + dy, pz)
-
-            if testSquare then
-                local waterBody = testSquare:getWater()
-                local isWaterNotShore = (waterBody and not waterBody:isActualShore())
-                local isViewBlocked = cfg.hideCantSee and not testSquare:isCanSee(playerNum)
-                local isStandardValid = testSquare:isOutside() and testSquare:IsOnScreen() and
-                    not cell:IsBehindStuff(testSquare) and not isViewBlocked
-
-                if isStandardValid then
-                    if isWaterNotShore then
-                        if randy:random(1, 100) <= 2 then
-                            table.insert(otherSquares, testSquare)
-                        end
-                    end
-                    if isShoreline(testSquare) then
-                        local randomX = randy:random(-1,1)
-                        local randomY = randy:random(-1, 1)
-                        local randomSquare = cell:getGridSquare(testSquare:getX() + randomX, testSquare:getY() + randomY, pz)
-                        if randomSquare then
-                            table.insert(shoreSquares, randomSquare)
-                        else
-                            table.insert(shoreSquares, testSquare)
-                        end
-                    end
-                    if testSquare:HasTree() then
-                        table.insert(treeSquares, testSquare)
-                    elseif testSquare:hasGrassLike() then
-                        table.insert(grassSquares, testSquare)
-                    else
-                        if not isWaterNotShore then
-                            table.insert(otherSquares, testSquare)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function calculateSpawnTargets(totalToSpawn)
-    local shorePercent = 0.70
-    local treePercent = 0.20
-    local grassPercent = 0.10
+local function calculateSpawnTargets(totalToSpawn, shoreSquares, treeSquares, grassSquares, otherSquares)
+    local shorePercent = 0.50
+    local treePercent = 0.30
+    local grassPercent = 0.20
 
     local shorePool = #shoreSquares
     local treePool = #treeSquares
@@ -218,35 +105,37 @@ local function spawnFromPool(pool, count, playerNum, texture)
     return spawnedCount
 end
 
-function JBFireflies.spawnRandomFireflies(baseCount)
+function JBFireflies.spawnFromPools(totalToSpawn, shoreSquares, treeSquares, grassSquares, otherSquares)
+    local cfg = SandboxVars.JBFireflyOptions
     local player = getPlayer()
     if not player then return end
 
-    local cfg = JBFireflies.Config
-    local count = JBFireflies.getAdjustedSpawnCount(baseCount)
-    if count == 0 then return end
-
-    collectCandidateSquares(player, cfg, count)
-
-    local totalCandidates = #shoreSquares + #otherSquares + #treeSquares + #grassSquares
-    if totalCandidates == 0 then return end
-
-    local targetShore, targetTree, targetGrass, targetOther = calculateSpawnTargets(count)
-
-    local texture = getTexture("media/textures/jb_firefly.png")
     local playerNum = player:getPlayerNum()
 
-    local shoreSpawned = spawnFromPool(shoreSquares, targetShore, playerNum, texture)
-    local treeSpawned = spawnFromPool(treeSquares, targetTree, playerNum, texture)
-    local grassSpawned = spawnFromPool(grassSquares, targetGrass, playerNum, texture)
+    local targetShore, targetTree, targetGrass, targetOther =
+        calculateSpawnTargets(totalToSpawn, shoreSquares, treeSquares, grassSquares, otherSquares)
 
-    local otherSpawned = spawnFromPool(otherSquares, targetOther, playerNum, texture)
+    local shoreSpawned = spawnFromPool(shoreSquares, targetShore, playerNum, FIREFLY_TEXTURE)
+    local treeSpawned = spawnFromPool(treeSquares, targetTree, playerNum, FIREFLY_TEXTURE)
+    local grassSpawned = spawnFromPool(grassSquares, targetGrass, playerNum, FIREFLY_TEXTURE)
+    local otherSpawned = spawnFromPool(otherSquares, targetOther, playerNum, FIREFLY_TEXTURE)
 
-    if cfg.debug then
+    if cfg.debug and spawnStatsUI then
         local spawned = shoreSpawned + treeSpawned + grassSpawned + otherSpawned
-        if spawnStatsUI then
-            spawnStatsUI:updateStats(spawned, count, shoreSpawned, treeSpawned, grassSpawned, otherSpawned)
+        spawnStatsUI:updateStats(spawned, totalToSpawn, shoreSpawned, treeSpawned, grassSpawned, otherSpawned)
+    end
+end
+
+local function toggleSpawnStatsWindow()
+    if spawnStatsUI and spawnStatsUI:getIsVisible() then
+        spawnStatsUI:setVisible(false)
+        spawnStatsUI:removeFromUIManager()
+    else
+        if not spawnStatsUI then
+            spawnStatsUI = SpawnStatsWindow:new(300, 300, 300, 250)
         end
+        spawnStatsUI:addToUIManager()
+        spawnStatsUI:setVisible(true)
     end
 end
 
@@ -262,34 +151,46 @@ end
 function JBFireflies.onTickFireflies(tick)
     local day = getDayOfYear()
     if not isInSeason(day) then
-        -- if JBFireflies.Config.debug then print("JB's Fireflies: Out of season. Switching to daily check.") end
         Events.OnTick.Remove(JBFireflies.onTickFireflies)
         Events.EveryTenMinutes.Add(JBFireflies.onDailyCheck)
         return
     end
 
-    local cfg = JBFireflies.Config
-    if tick % cfg.ticksToSpawn == 0 then
+    local cfg = SandboxVars.JBFireflyOptions
+
+    if tick % cfg.ticksToSpawn == 0 and not SquareCollector.active then
         local base = randy:random(cfg.minSpawn, cfg.maxSpawn)
-        JBFireflies.spawnRandomFireflies(base)
+        JBFireflies.pendingSpawnCount = base
+        SquareCollector:start(getPlayer(), cfg)
+    end
+
+    SquareCollector:update()
+
+    if JBFireflies.pendingSpawnCount and not SquareCollector.active then
+        local shoreSquares, treeSquares, grassSquares, otherSquares = SquareCollector:getPools()
+        JBFireflies.spawnFromPools(JBFireflies.pendingSpawnCount, shoreSquares, treeSquares, grassSquares, otherSquares)
+        JBFireflies.pendingSpawnCount = nil
     end
 end
 
 Events.OnGameStart.Add(function()
+    JBFireflies.Config = SandboxVars.JBFireflyOptions
+    JBFireflies.Config.debug = false --########################## MAKE SURE AND TURN THIS SHIT OFF BEFORE UPLOADING NEXT TIME
+    JBFireflies.Config.spawnArea = math.min(JBFireflies.Config.spawnArea, 150)
     local day = getDayOfYear()
     if isInSeason(day) then
         Events.OnTick.Add(JBFireflies.onTickFireflies)
     else
         Events.EveryTenMinutes.Add(JBFireflies.onDailyCheck)
     end
-end)
 
-if JBFireflies.Config.debug then
-    Events.OnKeyPressed.Add(function(key)
-        if key == Keyboard.KEY_0 then
-            toggleSpawnStatsWindow()
-        end
-    end)
-end
+    if JBFireflies.Config.debug then
+        Events.OnKeyPressed.Add(function(key)
+            if key == Keyboard.KEY_0 then
+                toggleSpawnStatsWindow()
+            end
+        end)
+    end
+end)
 
 
