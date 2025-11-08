@@ -157,7 +157,9 @@ function JBFireflies.onTickFireflies(tick)
 
     local cfg = JBFireflies.Config
 
-    if tick % cfg.ticksToSpawn == 0 and not SquareCollector.active then
+    local dTick = tick * getGameTime():getTimeDelta()
+
+    if dTick >= cfg.ticksToSpawn and not SquareCollector.active then
         local base = randy:random(cfg.minSpawn, cfg.maxSpawn)
         JBFireflies.pendingSpawnCount = base
         SquareCollector:start(getPlayer(), cfg)

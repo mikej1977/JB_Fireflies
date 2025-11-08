@@ -1,0 +1,15 @@
+Sandbox_TR = {
+
+    Sandbox_JBFireflyOptions = "JB's Fireflies Türkçe",
+    
+    Sandbox_JBFireflyOptions_ticksToSpawn = "Her ... tik başı ateş böceği spawnla",
+    Sandbox_JBFireflyOptions_minSpawn = "Her ... tik başı spawnlanan minimum ateş böceği sayısı",
+    Sandbox_JBFireflyOptions_maxSpawn = "Her ... tik başı spawnlanan maksimum ateş böceği sayısı",
+    Sandbox_JBFireflyOptions_maxFireflyInstances = "Ekranda işlenecek maksimum ateş böceği sayısı",
+    Sandbox_JBFireflyOptions_spawnArea = "Ateş böceklerinin oyuncu etrafında spawnlanacağı kare sayısı",
+    Sandbox_JBFireflyOptions_taperDays = "Ateş böceklerinin zamanla ortaya çıkıp yok olduğu gün sayısı",
+    Sandbox_JBFireflyOptions_startDay = "Ateş böceği döneminin başlayacağı yılın günü",
+    Sandbox_JBFireflyOptions_endDay = "Ateş böceği döneminin biteceği yılın günü",
+    Sandbox_JBFireflyOptions_hideCantSee = "Oyunucunun göremeyeceği bir şekilde ateş böceklerini sakla",
+
+}

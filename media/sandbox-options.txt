@@ -2,7 +2,7 @@ VERSION = 1,
 
     option JBFireflyOptions.ticksToSpawn {
         type = integer,
-        default = 10,
+        default = 25,
         min = 1,
         max = 1000,
         page = JBFireflyOptions,
@@ -10,7 +10,7 @@ VERSION = 1,
 
     option JBFireflyOptions.minSpawn {
         type = integer,
-        default = 2,
+        default = 1,
         min = 1,
         max = 10000, 
         page = JBFireflyOptions, 
@@ -18,7 +18,7 @@ VERSION = 1,
 
     option JBFireflyOptions.maxSpawn {
         type = integer,
-        default = 5,
+        default = 2,
         min = 1,
         max = 10000,  
         page = JBFireflyOptions, 
@@ -26,7 +26,7 @@ VERSION = 1,
 
     option JBFireflyOptions.maxFireflyInstances {
         type = integer,
-        default = 100,
+        default = 50,
         min = 1,
         max = 100000, 
         page = JBFireflyOptions, 

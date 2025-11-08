@@ -35,7 +35,7 @@ end
 local function setupRandoms(playerNum)
     local zoom = getCore():getZoom(playerNum)
     return {
-        maxFrames = randy:random(60, 250),
+        maxFrames = randy:random(250, 1000),
         size = math.max(2, randy:random(2, 5) * zoom),
         offsetX = randy:random(-1, 1) / 10,
         offsetY = randy:random(-1, 1) / 10,
@@ -62,7 +62,7 @@ function FireflyUI:new(playerNum, texture, square)
     o.baseAlpha = params.baseAlpha
 
     o.angle = randomFloat(0, 360)
-    o.speed = randomFloat(0.001, 0.002)
+    o.speed = randomFloat(0.0001, 0.0002)
     o.rotationRate = randomFloat(-0.02, 0.02)
 
     table.insert(FireflyUI.instances, o)
@@ -70,6 +70,7 @@ function FireflyUI:new(playerNum, texture, square)
 end
 
 function FireflyUI:render()
+
     self.frameCount = self.frameCount + 1
 
     if self.doneFlashing then return end
