@@ -3,7 +3,7 @@
 # JB's Fireflies Version 2.8
 _Add some ambiance to your summer nights in Project Zomboid_
 
-## B42 Only
+## B41 and B42.12+
 Unless I can figure out depth mapping, I'm probably done updating this for awhile.
 
 ---
