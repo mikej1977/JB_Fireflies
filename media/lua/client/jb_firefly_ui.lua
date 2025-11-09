@@ -35,7 +35,7 @@ end
 local function setupRandoms(playerNum)
     local zoom = getCore():getZoom(playerNum)
     return {
-        maxFrames = randy:random(250, 1000),
+        maxFrames = randy:random(150, 500),
         size = math.max(2, randy:random(2, 5) * zoom),
         offsetX = randy:random(-1, 1) / 10,
         offsetY = randy:random(-1, 1) / 10,
